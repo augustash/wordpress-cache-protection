@@ -1,0 +1,40 @@
+{
+    "name": "augustash/wordpress-cache-protection",
+    "description": "WordPress equivalent of drupal_cache_protection. Strips/redirects tracking params so Varnish caches canonical URLs, augments robots.txt with bot-throttling rules, and exposes filters for site-specific extension.",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "homepage": "https://github.com/augustash/wordpress-cache-protection",
+    "authors": [
+        {
+            "name": "August Ash",
+            "homepage": "https://augustash.com"
+        }
+    ],
+    "require": {
+        "php": ">=7.4",
+        "composer/installers": "^1.0 || ^2.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.6 || ^10.5"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Augustash\\WordpressCacheProtection\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "test:unit": "phpunit --testsuite=Unit"
+    },
+    "extra": {
+        "installer-name": "wordpress-cache-protection",
+        "branch-alias": {
+            "dev-master": "1.x-dev"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "composer/installers": true
+        }
+    }
+}
