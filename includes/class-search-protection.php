@@ -53,9 +53,13 @@ class SearchProtection {
 			return;
 		}
 
-		// Tell Varnish/CDN: never cache this. Headers must be set before
-		// WordPress emits anything, hence the early hook.
-		self::emit_uncache_headers();
+		// Tell Varnish/CDN: never cache this. Must run LATE — Pantheon's
+		// mu-plugin sets `Cache-Control: public, max-age=302400` at
+		// send_headers (default priority 10) and would otherwise overwrite
+		// ours. Priority 999 fires after Pantheon's. Setting the header
+		// directly here at plugins_loaded gets clobbered before the response
+		// leaves PHP, so we hook instead.
+		add_action('send_headers', [self::class, 'emit_uncache_headers'], 999);
 
 		// Rate-limit check. Both windows are evaluated; either trigger 429s.
 		$client_ip = self::client_ip();
@@ -259,8 +263,12 @@ class SearchProtection {
 	// Response emission
 	// ============================================================
 
-	protected static function emit_uncache_headers(): void {
-		// Defensive: don't send headers twice or after output.
+	/**
+	 * Public so it's callable as a `send_headers` action callback.
+	 * Always idempotent — safe to call repeatedly.
+	 */
+	public static function emit_uncache_headers(): void {
+		// Defensive: don't send headers after output (would be a no-op + notice).
 		if (headers_sent()) {
 			return;
 		}
