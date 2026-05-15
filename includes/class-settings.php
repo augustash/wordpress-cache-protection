@@ -48,6 +48,14 @@ class Settings {
 		update_option(self::OPTION_REDIRECT, self::parse_list($_POST['redirect_params'] ?? ''));
 		update_option(self::OPTION_STRIP, self::parse_list($_POST['strip_params'] ?? ''));
 
+		// Search protection settings.
+		update_option(SearchProtection::OPTION_ENABLED, ! empty($_POST['search_protection_enabled']));
+		update_option(SearchProtection::OPTION_PARAMS, self::parse_list($_POST['search_params'] ?? ''));
+		update_option(SearchProtection::OPTION_BURST_WINDOW, max(1, (int) ($_POST['search_burst_window'] ?? SearchProtection::DEFAULT_BURST_WINDOW)));
+		update_option(SearchProtection::OPTION_BURST_THRESHOLD, max(1, (int) ($_POST['search_burst_threshold'] ?? SearchProtection::DEFAULT_BURST_THRESHOLD)));
+		update_option(SearchProtection::OPTION_SUSTAINED_WINDOW, max(1, (int) ($_POST['search_sustained_window'] ?? SearchProtection::DEFAULT_SUSTAINED_WINDOW)));
+		update_option(SearchProtection::OPTION_SUSTAINED_THRESHOLD, max(1, (int) ($_POST['search_sustained_threshold'] ?? SearchProtection::DEFAULT_SUSTAINED_THRESHOLD)));
+
 		add_settings_error(
 			self::PAGE_SLUG,
 			'wpcp_saved',
@@ -87,6 +95,60 @@ class Settings {
 					<?php esc_html_e('Params client-side JS reads from window.location for attribution. Browser URL stays dirty; the application sees clean.', 'wordpress-cache-protection'); ?>
 				</p>
 				<textarea name="strip_params" rows="10" cols="40" class="large-text code"><?php echo esc_textarea(self::list_to_text($strip)); ?></textarea>
+
+				<hr>
+
+				<h2><?php esc_html_e('Search protection', 'wordpress-cache-protection'); ?></h2>
+				<p class="description">
+					<?php esc_html_e('Rate-limit search requests per IP and tell Varnish to never cache search responses. Mirrors drupal_cache_protection_search.', 'wordpress-cache-protection'); ?>
+				</p>
+
+				<?php
+				$search_enabled            = (bool) get_option(SearchProtection::OPTION_ENABLED, true);
+				$search_params             = get_option(SearchProtection::OPTION_PARAMS, SearchProtection::DEFAULT_SEARCH_PARAMS);
+				$search_params             = is_array($search_params) ? $search_params : SearchProtection::DEFAULT_SEARCH_PARAMS;
+				$search_burst_window       = (int) get_option(SearchProtection::OPTION_BURST_WINDOW, SearchProtection::DEFAULT_BURST_WINDOW);
+				$search_burst_threshold    = (int) get_option(SearchProtection::OPTION_BURST_THRESHOLD, SearchProtection::DEFAULT_BURST_THRESHOLD);
+				$search_sustained_window   = (int) get_option(SearchProtection::OPTION_SUSTAINED_WINDOW, SearchProtection::DEFAULT_SUSTAINED_WINDOW);
+				$search_sustained_threshold = (int) get_option(SearchProtection::OPTION_SUSTAINED_THRESHOLD, SearchProtection::DEFAULT_SUSTAINED_THRESHOLD);
+				?>
+
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e('Enabled', 'wordpress-cache-protection'); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="search_protection_enabled" value="1" <?php checked($search_enabled); ?>>
+								<?php esc_html_e('Throttle and uncache search requests', 'wordpress-cache-protection'); ?>
+							</label>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e('Search params', 'wordpress-cache-protection'); ?></th>
+						<td>
+							<textarea name="search_params" rows="3" cols="20" class="code"><?php echo esc_textarea(self::list_to_text($search_params)); ?></textarea>
+							<p class="description"><?php esc_html_e('One per line. Default: s (WP core search). Add others if a search plugin uses different param names.', 'wordpress-cache-protection'); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e('Burst window', 'wordpress-cache-protection'); ?></th>
+						<td>
+							<input type="number" name="search_burst_window" min="1" value="<?php echo esc_attr((string) $search_burst_window); ?>" class="small-text">
+							<?php esc_html_e('seconds', 'wordpress-cache-protection'); ?>
+							/ max <input type="number" name="search_burst_threshold" min="1" value="<?php echo esc_attr((string) $search_burst_threshold); ?>" class="small-text">
+							<?php esc_html_e('requests', 'wordpress-cache-protection'); ?>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e('Sustained window', 'wordpress-cache-protection'); ?></th>
+						<td>
+							<input type="number" name="search_sustained_window" min="1" value="<?php echo esc_attr((string) $search_sustained_window); ?>" class="small-text">
+							<?php esc_html_e('seconds', 'wordpress-cache-protection'); ?>
+							/ max <input type="number" name="search_sustained_threshold" min="1" value="<?php echo esc_attr((string) $search_sustained_threshold); ?>" class="small-text">
+							<?php esc_html_e('requests', 'wordpress-cache-protection'); ?>
+						</td>
+					</tr>
+				</table>
 
 				<p class="submit">
 					<button type="submit" name="wpcp_save" class="button button-primary"><?php esc_html_e('Save', 'wordpress-cache-protection'); ?></button>

@@ -21,9 +21,20 @@ Also strips Pantheon's `*=PANTHEON_STRIPPED` leftovers.
 
 Augments `robots.txt` with bot-throttling rules for known abuse patterns.
 
+## Search protection
+
+Per-IP rate-limit + page-cache kill on search responses. Every search query is unique, so the page cache can never help; meanwhile bots blast random queries to fragment cache and stress the DB.
+
+- Two flood windows: burst (default 5/10s) + sustained (default 30/60s). Either limit triggers 429.
+- Cache-Control: `private, no-store` on search responses so Varnish never caches them.
+- Empty `?s=` (bare search form) doesn't trigger — stays cacheable.
+- Default search param: `s` (WP core). Configurable.
+
+Enabled by default; toggle off in Settings → Cache Protection.
+
 ## Configuration
 
-Settings → Cache Protection in the WP admin. Two textareas for redirect and strip lists, one param per line. Trailing `*` for prefix wildcards (e.g. `utm_*`).
+Settings → Cache Protection in the WP admin. Two textareas for redirect and strip lists, one param per line. Trailing `*` for prefix wildcards (e.g. `utm_*`). Search protection has its own section with the windows/thresholds.
 
 ## Testing
 

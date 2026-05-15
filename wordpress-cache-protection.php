@@ -25,6 +25,7 @@ define('WPCP_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WPCP_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 require_once WPCP_PLUGIN_DIR . 'includes/class-cache-protection.php';
+require_once WPCP_PLUGIN_DIR . 'includes/class-search-protection.php';
 require_once WPCP_PLUGIN_DIR . 'includes/class-settings.php';
 require_once WPCP_PLUGIN_DIR . 'includes/class-robots.php';
 
@@ -34,8 +35,11 @@ require_once WPCP_PLUGIN_DIR . 'includes/class-robots.php';
 // equivalent of being early in the request pipeline.
 \Augustash\WordpressCacheProtection\CacheProtection::boot();
 
-// Admin + robots register their own hooks (not on the critical path).
+// Search protection runs at plugins_loaded — it needs the options API and
+// transient store to be available, which CacheProtection doesn't. Still
+// early enough to set headers and short-circuit before WP runs the main query.
 add_action('plugins_loaded', function () {
+	\Augustash\WordpressCacheProtection\SearchProtection::boot();
 	\Augustash\WordpressCacheProtection\Settings::boot();
 	\Augustash\WordpressCacheProtection\Robots::boot();
-});
+}, 1);
