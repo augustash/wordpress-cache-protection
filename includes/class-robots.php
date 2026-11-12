@@ -20,6 +20,8 @@ class Robots {
 
 	const ASSET_FILE = 'assets/robots-additions.txt';
 
+	const OPTION_THROTTLE_AHREFS = 'wpcp_robots_throttle_ahrefs';
+
 	public static function boot(): void {
 		add_filter('robots_txt', [self::class, 'append'], 20, 2);
 	}
@@ -45,8 +47,29 @@ class Robots {
 			return $output;
 		}
 
+		if (! self::throttles_ahrefs()) {
+			$additions = self::without_ahrefs_throttle($additions);
+		}
+
 		$additions = (string) apply_filters('wpcp_robots_additions', $additions);
 
 		return rtrim($output, "\n") . "\n\n" . $additions . "\n";
+	}
+
+	/**
+	 * On by default: the throttle exists because a site audit crashed a site.
+	 * Turn it off where the logs show Ahrefs metering itself.
+	 */
+	public static function throttles_ahrefs(): bool {
+		$stored = get_option(self::OPTION_THROTTLE_AHREFS, true);
+		return (bool) apply_filters('wpcp_robots_throttle_ahrefs', $stored);
+	}
+
+	/**
+	 * Remove the AhrefsSiteAudit block (its comment through its Crawl-delay).
+	 * Public for tests.
+	 */
+	public static function without_ahrefs_throttle(string $additions): string {
+		return (string) preg_replace('/^# Throttle AhrefsSiteAudit\.(?:.*\R)*?Crawl-delay:.*\R+/m', '', $additions);
 	}
 }

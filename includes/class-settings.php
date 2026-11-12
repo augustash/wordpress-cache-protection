@@ -57,6 +57,7 @@ class Settings {
 		update_option(SearchProtection::OPTION_SUSTAINED_THRESHOLD, max(1, (int) ($_POST['search_sustained_threshold'] ?? SearchProtection::DEFAULT_SUSTAINED_THRESHOLD)));
 
 		update_option(SearchwpIndexing::OPTION_ENABLED, ! empty($_POST['searchwp_indexing_enabled']));
+		update_option(Robots::OPTION_THROTTLE_AHREFS, ! empty($_POST['robots_throttle_ahrefs']));
 
 		add_settings_error(
 			self::PAGE_SLUG,
@@ -169,6 +170,22 @@ class Settings {
 							<?php if (! SearchwpIndexing::searchwp_active()) : ?>
 								<p class="description"><?php esc_html_e('SearchWP 4 is not active, so this does nothing here.', 'wordpress-cache-protection'); ?></p>
 							<?php endif; ?>
+						</td>
+					</tr>
+				</table>
+
+				<hr>
+
+				<h2><?php esc_html_e('robots.txt', 'wordpress-cache-protection'); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e('Ahrefs site audits', 'wordpress-cache-protection'); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="robots_throttle_ahrefs" value="1" <?php checked(Robots::throttles_ahrefs()); ?>>
+								<?php esc_html_e('Ask AhrefsSiteAudit to wait 60 seconds between requests', 'wordpress-cache-protection'); ?>
+							</label>
+							<p class="description"><?php esc_html_e('An audit has saturated PHP workers on other sites. Turn this off when this site\'s logs show Ahrefs metering itself: few requests at once and none landing alongside worker saturation.', 'wordpress-cache-protection'); ?></p>
 						</td>
 					</tr>
 				</table>

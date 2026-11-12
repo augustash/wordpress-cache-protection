@@ -3,7 +3,7 @@
  * Plugin Name:       WordPress Cache Protection
  * Plugin URI:        https://github.com/augustash/wordpress-cache-protection
  * Description:       Strips/redirects tracking params so Varnish caches canonical URLs, augments robots.txt with bot-throttling rules, rate-limits search, and stops SearchWP indexing over HTTP self-calls. WordPress equivalent of drupal_cache_protection.
- * Version:           1.1.1
+ * Version:           1.2.0
  * Requires at least: 5.5
  * Requires PHP:      7.4
  * Author:            August Ash
@@ -19,7 +19,7 @@ if (! defined('ABSPATH')) {
 	exit;
 }
 
-define('WPCP_VERSION', '1.1.1');
+define('WPCP_VERSION', '1.2.0');
 define('WPCP_PLUGIN_FILE', __FILE__);
 define('WPCP_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WPCP_PLUGIN_URL', plugin_dir_url(__FILE__));

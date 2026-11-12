@@ -21,6 +21,8 @@ Also strips Pantheon's `*=PANTHEON_STRIPPED` leftovers.
 
 Augments `robots.txt` with bot-throttling rules for known abuse patterns.
 
+The AhrefsSiteAudit throttle (60s crawl delay) is on by default and can be turned off in Settings → Cache Protection, or with the `wpcp_robots_throttle_ahrefs` filter. Turn it off when the site's logs show Ahrefs metering itself: few requests at once and none landing alongside worker saturation.
+
 ## Search protection
 
 Per-IP rate-limit + page-cache kill on search responses. Every search query is unique, so the page cache can never help; meanwhile bots blast random queries to fragment cache and stress the DB.
