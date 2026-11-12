@@ -56,6 +56,8 @@ class Settings {
 		update_option(SearchProtection::OPTION_SUSTAINED_WINDOW, max(1, (int) ($_POST['search_sustained_window'] ?? SearchProtection::DEFAULT_SUSTAINED_WINDOW)));
 		update_option(SearchProtection::OPTION_SUSTAINED_THRESHOLD, max(1, (int) ($_POST['search_sustained_threshold'] ?? SearchProtection::DEFAULT_SUSTAINED_THRESHOLD)));
 
+		update_option(SearchwpIndexing::OPTION_ENABLED, ! empty($_POST['searchwp_indexing_enabled']));
+
 		add_settings_error(
 			self::PAGE_SLUG,
 			'wpcp_saved',
@@ -146,6 +148,27 @@ class Settings {
 							<?php esc_html_e('seconds', 'wordpress-cache-protection'); ?>
 							/ max <input type="number" name="search_sustained_threshold" min="1" value="<?php echo esc_attr((string) $search_sustained_threshold); ?>" class="small-text">
 							<?php esc_html_e('requests', 'wordpress-cache-protection'); ?>
+						</td>
+					</tr>
+				</table>
+
+				<hr>
+
+				<h2><?php esc_html_e('SearchWP indexing', 'wordpress-cache-protection'); ?></h2>
+				<p class="description">
+					<?php esc_html_e('SearchWP indexes by calling the site on itself over HTTP, holding a PHP worker (often two) per batch. With this on, a save re-indexes its own entry after the response is sent, and an hourly WP-CLI cron sweeps the rest. SearchWP\'s settings screen will show the indexer as paused; that is expected.', 'wordpress-cache-protection'); ?>
+				</p>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e('Enabled', 'wordpress-cache-protection'); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="searchwp_indexing_enabled" value="1" <?php checked((bool) get_option(SearchwpIndexing::OPTION_ENABLED, true)); ?>>
+								<?php esc_html_e('Index without HTTP self-calls', 'wordpress-cache-protection'); ?>
+							</label>
+							<?php if (! SearchwpIndexing::searchwp_active()) : ?>
+								<p class="description"><?php esc_html_e('SearchWP 4 is not active, so this does nothing here.', 'wordpress-cache-protection'); ?></p>
+							<?php endif; ?>
 						</td>
 					</tr>
 				</table>

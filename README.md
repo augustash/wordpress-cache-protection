@@ -32,6 +32,25 @@ Per-IP rate-limit + page-cache kill on search responses. Every search query is u
 
 Enabled by default; toggle off in Settings → Cache Protection.
 
+## SearchWP indexing
+
+SearchWP 4 indexes by POSTing to the site's own `admin-ajax.php`, one batch per request. Each batch holds a PHP-FPM worker, and the dispatching request often holds a second one waiting. On Pantheon the call leaves by the public hostname, so behind Cloudflare it goes out and back in. On a Basic plan (4 workers) one indexing run is half the pool, every time staff edit.
+
+With SearchWP active, this plugin:
+
+- Never starts SearchWP's background process from a web request (`searchwp\index\process\enabled` is true only under WP-CLI).
+- Skips SearchWP's blocking HTTP self-test on save (`searchwp\indexer\alternate`).
+- Drops a saved entry from the index at once (`searchwp\index\aggressive_delta`) and re-indexes it in the same request after `fastcgi_finish_request()`. Searchable immediately; no second worker.
+- Schedules an hourly sweep (`\SearchWP\CLI::index()`) that only runs under WP-CLI. Pantheon runs WP-Cron through WP-CLI, outside the web pool.
+
+SearchWP's settings screen will say the indexer is paused. That's true for web requests, and expected. On a host that doesn't run WP-Cron from WP-CLI, schedule `wp cron event run --due-now` or `wp searchwp index` yourself.
+
+Enabled by default; toggle off in Settings → Cache Protection, or with the `wpcp_searchwp_indexing_enabled` filter.
+
+## Not covered: Dynamics 365 email parameters
+
+Dynamics 365 marketing emails add `_cldee`, `recipientid` and `esid` to every link, unique per recipient. Stripping them here doesn't help the cache: Pantheon's edge keys on the URL before WordPress runs. Remove them at the CDN instead (a Cloudflare URL Rewrite rule).
+
 ## Configuration
 
 Settings → Cache Protection in the WP admin. Two textareas for redirect and strip lists, one param per line. Trailing `*` for prefix wildcards (e.g. `utm_*`). Search protection has its own section with the windows/thresholds.
