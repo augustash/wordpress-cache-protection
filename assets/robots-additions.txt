@@ -1,6 +1,10 @@
 # Block XML-RPC. Universal WordPress abuse vector — pingback amplification,
 # brute-force auth via system.multicall. Legitimate XML-RPC use cases are
 # vanishingly rare; if your site is one of them, override this rule.
+# Opens its own group: SEO plugins (Yoast) strip WordPress's default rules and
+# append theirs after ours, so no User-agent line may precede this one, and a
+# rule outside any group is ignored. Repeated User-agent: * groups merge.
+User-agent: *
 Disallow: /xmlrpc.php
 
 # Throttle AhrefsSiteAudit. Observed in the wild driving a 5-hour 499/502

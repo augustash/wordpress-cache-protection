@@ -39,9 +39,15 @@ class RobotsTest extends TestCase {
 		$this->assertMatchesRegularExpression('/User-agent: \*\s*$/', $out);
 	}
 
-	public function test_leaves_xmlrpc_rule_under_the_preceding_group(): void {
-		// The Disallow has no User-agent of its own; it must still come before any group starts.
-		$out = Robots::without_ahrefs_throttle(self::$shipped);
-		$this->assertLessThan(strpos($out, 'User-agent:'), strpos($out, 'Disallow: /xmlrpc.php'));
+	public function test_every_rule_sits_inside_a_group(): void {
+		// Yoast strips WordPress's defaults and appends after us, so the file
+		// can lead robots.txt: a rule before any User-agent line is ignored.
+		foreach ([self::$shipped, Robots::without_ahrefs_throttle(self::$shipped)] as $text) {
+			$lines = array_values(array_filter(
+				array_map('trim', explode("\n", $text)),
+				fn ($l) => $l !== '' && $l[0] !== '#'
+			));
+			$this->assertStringStartsWith('User-agent:', $lines[0]);
+		}
 	}
 }
