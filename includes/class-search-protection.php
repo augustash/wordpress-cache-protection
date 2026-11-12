@@ -148,43 +148,86 @@ class SearchProtection {
 	// ============================================================
 
 	/**
-	 * Resolve the real client IP. Pantheon's authoritative header wins, then
-	 * the first IP in X-Forwarded-For, then REMOTE_ADDR. Public for testing.
-	 *
-	 * @param array<string,string>|null $server Optional $_SERVER override (for tests).
+	 * Cloudflare's edge ranges, from https://www.cloudflare.com/ips/ (checked
+	 * 2026-11-12). They change rarely; extend with `wpcp_trusted_proxies`.
 	 */
-	public static function client_ip(?array $server = null): string {
-		$server = $server ?? $_SERVER;
+	const CLOUDFLARE_RANGES = [
+		'173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22',
+		'141.101.64.0/18', '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20',
+		'197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+		'104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+		'2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32',
+		'2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32',
+	];
 
-		$candidates = [
-			$server['HTTP_X_PANTHEON_CLIENT_IP'] ?? '',
-			$server['HTTP_CF_CONNECTING_IP'] ?? '',
-			self::first_xff($server['HTTP_X_FORWARDED_FOR'] ?? ''),
-			$server['REMOTE_ADDR'] ?? '',
-		];
+	/**
+	 * Resolve the visitor's IP. Public for testing.
+	 *
+	 * The connecting peer is Pantheon's client-IP header, else REMOTE_ADDR.
+	 * Behind Cloudflare that peer is a Cloudflare edge shared by every visitor
+	 * in a region, so when it is one, Cloudflare's own CF-Connecting-IP names
+	 * the visitor. Cloudflare overwrites that header, so it can't be forged
+	 * through the proxy; from anywhere else it is ignored.
+	 *
+	 * @param array<string,string>|null $server  Optional $_SERVER override (for tests).
+	 * @param string[]|null             $proxies Optional trusted CIDRs (for tests).
+	 */
+	public static function client_ip(?array $server = null, ?array $proxies = null): string {
+		$server  = $server ?? $_SERVER;
+		$proxies = $proxies ?? self::trusted_proxies();
 
-		foreach ($candidates as $ip) {
-			$ip = trim((string) $ip);
-			if ($ip === '') {
-				continue;
-			}
-			if (filter_var($ip, FILTER_VALIDATE_IP) !== false) {
-				return $ip;
-			}
+		$remote = self::valid_ip($server['REMOTE_ADDR'] ?? '');
+		$peer   = self::valid_ip($server['HTTP_X_PANTHEON_CLIENT_IP'] ?? '') ?: $remote;
+
+		$cf = self::valid_ip($server['HTTP_CF_CONNECTING_IP'] ?? '');
+		if ($cf !== '' && (self::ip_in_ranges($peer, $proxies) || self::ip_in_ranges($remote, $proxies))) {
+			return $cf;
 		}
-		return '';
+		return $peer;
+	}
+
+	/** @return string[] */
+	public static function trusted_proxies(): array {
+		$ranges = self::CLOUDFLARE_RANGES;
+		return function_exists('apply_filters') ? (array) apply_filters('wpcp_trusted_proxies', $ranges) : $ranges;
+	}
+
+	protected static function valid_ip($value): string {
+		$ip = trim((string) $value);
+		return filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : '';
 	}
 
 	/**
-	 * Extract the first IP from an X-Forwarded-For header value.
-	 * Public for testing.
+	 * Whether an IP falls in any of the CIDR ranges (v4 or v6). Public for tests.
+	 *
+	 * @param string[] $ranges
 	 */
-	public static function first_xff(string $xff): string {
-		if ($xff === '') {
-			return '';
+	public static function ip_in_ranges(string $ip, array $ranges): bool {
+		$addr = $ip === '' ? false : @inet_pton($ip);
+		if ($addr === false) {
+			return false;
 		}
-		$first = strtok($xff, ',');
-		return is_string($first) ? trim($first) : '';
+		foreach ($ranges as $range) {
+			[$net, $bits] = array_pad(explode('/', (string) $range, 2), 2, null);
+			$net = @inet_pton((string) $net);
+			if ($net === false || strlen($net) !== strlen($addr)) {
+				continue;
+			}
+			$bits  = $bits === null ? strlen($net) * 8 : (int) $bits;
+			$bytes = intdiv($bits, 8);
+			if (substr($addr, 0, $bytes) !== substr($net, 0, $bytes)) {
+				continue;
+			}
+			$rest = $bits % 8;
+			if ($rest === 0) {
+				return true;
+			}
+			$mask = chr((0xff << (8 - $rest)) & 0xff);
+			if ((($addr[$bytes] & $mask) === ($net[$bytes] & $mask))) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	// ============================================================

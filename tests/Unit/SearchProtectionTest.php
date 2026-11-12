@@ -32,70 +32,49 @@ class SearchProtectionTest extends TestCase {
 	}
 
 	// ============================================================
-	// first_xff()
-	// ============================================================
-
-	public function test_first_xff_returns_empty_for_empty_input(): void {
-		$this->assertSame('', SearchProtection::first_xff(''));
-	}
-
-	public function test_first_xff_returns_only_ip_when_single(): void {
-		$this->assertSame('203.0.113.5', SearchProtection::first_xff('203.0.113.5'));
-	}
-
-	public function test_first_xff_returns_first_in_chain(): void {
-		// XFF is "client, proxy1, proxy2" — leftmost is the original client.
-		$this->assertSame(
-			'203.0.113.5',
-			SearchProtection::first_xff('203.0.113.5, 10.0.0.1, 10.0.0.2')
-		);
-	}
-
-	public function test_first_xff_trims_whitespace(): void {
-		$this->assertSame('203.0.113.5', SearchProtection::first_xff('  203.0.113.5  , 10.0.0.1'));
-	}
-
-	public function test_first_xff_handles_ipv6(): void {
-		$this->assertSame(
-			'2603:7081:f00:e2d:8110:b9fb:6ceb:ae75',
-			SearchProtection::first_xff('2603:7081:f00:e2d:8110:b9fb:6ceb:ae75, 10.1.4.22')
-		);
-	}
-
-	// ============================================================
 	// client_ip()
 	// ============================================================
 
-	public function test_client_ip_prefers_pantheon_header(): void {
+	/** A Cloudflare edge address, as Pantheon sees it on a proxied site. */
+	const EDGE = '104.22.102.65';
+
+	public function test_client_ip_uses_cloudflare_header_when_peer_is_cloudflare(): void {
+		// Behind Cloudflare the peer is the edge; everyone in a region shares it.
 		$server = [
-			'HTTP_X_PANTHEON_CLIENT_IP' => '203.0.113.5',
-			'HTTP_CF_CONNECTING_IP'     => '198.51.100.7',
-			'HTTP_X_FORWARDED_FOR'      => '192.0.2.1, 10.0.0.1',
-			'REMOTE_ADDR'               => '10.0.0.99',
+			'HTTP_X_PANTHEON_CLIENT_IP' => self::EDGE,
+			'HTTP_CF_CONNECTING_IP'     => '203.0.113.5',
+			'REMOTE_ADDR'               => '10.1.8.137',
 		];
 		$this->assertSame('203.0.113.5', SearchProtection::client_ip($server));
 	}
 
-	public function test_client_ip_falls_back_to_cloudflare_when_no_pantheon(): void {
+	public function test_client_ip_uses_cloudflare_header_when_remote_addr_is_cloudflare(): void {
+		$server = ['HTTP_CF_CONNECTING_IP' => '203.0.113.5', 'REMOTE_ADDR' => self::EDGE];
+		$this->assertSame('203.0.113.5', SearchProtection::client_ip($server));
+	}
+
+	public function test_client_ip_ignores_cloudflare_header_from_anyone_else(): void {
+		// Straight to the origin with a forged header: rotating it must not dodge the limit.
 		$server = [
-			'HTTP_CF_CONNECTING_IP' => '198.51.100.7',
-			'HTTP_X_FORWARDED_FOR'  => '192.0.2.1',
-			'REMOTE_ADDR'           => '10.0.0.99',
+			'HTTP_X_PANTHEON_CLIENT_IP' => '198.51.100.7',
+			'HTTP_CF_CONNECTING_IP'     => '203.0.113.5',
+			'REMOTE_ADDR'               => '10.1.8.137',
 		];
 		$this->assertSame('198.51.100.7', SearchProtection::client_ip($server));
 	}
 
-	public function test_client_ip_falls_back_to_xff_first_ip(): void {
-		$server = [
-			'HTTP_X_FORWARDED_FOR' => '192.0.2.1, 10.0.0.1, 10.0.0.2',
-			'REMOTE_ADDR'          => '10.0.0.99',
-		];
-		$this->assertSame('192.0.2.1', SearchProtection::client_ip($server));
+	public function test_client_ip_never_trusts_forwarded_for(): void {
+		$server = ['HTTP_X_FORWARDED_FOR' => '192.0.2.1', 'REMOTE_ADDR' => '198.51.100.7'];
+		$this->assertSame('198.51.100.7', SearchProtection::client_ip($server));
+	}
+
+	public function test_client_ip_prefers_pantheon_header_over_remote_addr(): void {
+		$server = ['HTTP_X_PANTHEON_CLIENT_IP' => '203.0.113.5', 'REMOTE_ADDR' => '10.0.0.99'];
+		$this->assertSame('203.0.113.5', SearchProtection::client_ip($server));
 	}
 
 	public function test_client_ip_falls_back_to_remote_addr(): void {
-		$server = ['REMOTE_ADDR' => '10.0.0.99'];
-		$this->assertSame('10.0.0.99', SearchProtection::client_ip($server));
+		$this->assertSame('10.0.0.99', SearchProtection::client_ip(['REMOTE_ADDR' => '10.0.0.99']));
 	}
 
 	public function test_client_ip_returns_empty_when_nothing_present(): void {
@@ -103,18 +82,49 @@ class SearchProtectionTest extends TestCase {
 	}
 
 	public function test_client_ip_skips_invalid_values(): void {
-		// A spoofed header containing garbage shouldn't poison the result.
 		$server = [
 			'HTTP_X_PANTHEON_CLIENT_IP' => 'not-an-ip',
-			'HTTP_X_FORWARDED_FOR'      => '192.0.2.1',
-			'REMOTE_ADDR'               => '10.0.0.99',
+			'HTTP_CF_CONNECTING_IP'     => 'also-not',
+			'REMOTE_ADDR'               => self::EDGE,
 		];
-		$this->assertSame('192.0.2.1', SearchProtection::client_ip($server));
+		$this->assertSame(self::EDGE, SearchProtection::client_ip($server));
 	}
 
-	public function test_client_ip_accepts_ipv6(): void {
-		$server = ['HTTP_X_PANTHEON_CLIENT_IP' => '2603:7081:f00:e2d::1'];
+	public function test_client_ip_handles_ipv6_edge_and_visitor(): void {
+		$server = [
+			'HTTP_X_PANTHEON_CLIENT_IP' => '2606:4700:10::ac43:1',
+			'HTTP_CF_CONNECTING_IP'     => '2603:7081:f00:e2d::1',
+		];
 		$this->assertSame('2603:7081:f00:e2d::1', SearchProtection::client_ip($server));
+	}
+
+	public function test_client_ip_honours_given_proxy_ranges(): void {
+		$server = ['HTTP_CF_CONNECTING_IP' => '203.0.113.5', 'REMOTE_ADDR' => '10.0.0.99'];
+		$this->assertSame('203.0.113.5', SearchProtection::client_ip($server, ['10.0.0.0/8']));
+	}
+
+	// ============================================================
+	// ip_in_ranges()
+	// ============================================================
+
+	public function test_ip_in_ranges_matches_on_partial_byte_boundary(): void {
+		// 162.158.0.0/15 covers 162.158.* and 162.159.*, not 162.160.*.
+		$this->assertTrue(SearchProtection::ip_in_ranges('162.159.255.1', ['162.158.0.0/15']));
+		$this->assertFalse(SearchProtection::ip_in_ranges('162.160.0.1', ['162.158.0.0/15']));
+	}
+
+	public function test_ip_in_ranges_does_not_cross_families(): void {
+		$this->assertFalse(SearchProtection::ip_in_ranges('::ffff:104.16.0.1', ['104.16.0.0/13']));
+		$this->assertFalse(SearchProtection::ip_in_ranges('104.16.0.1', ['2606:4700::/32']));
+	}
+
+	public function test_ip_in_ranges_rejects_empty_and_garbage(): void {
+		$this->assertFalse(SearchProtection::ip_in_ranges('', ['0.0.0.0/0']));
+		$this->assertFalse(SearchProtection::ip_in_ranges('nope', ['0.0.0.0/0']));
+	}
+
+	public function test_ip_in_ranges_zero_prefix_matches_everything_in_family(): void {
+		$this->assertTrue(SearchProtection::ip_in_ranges('8.8.8.8', ['0.0.0.0/0']));
 	}
 
 	// ============================================================

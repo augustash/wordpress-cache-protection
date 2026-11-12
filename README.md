@@ -29,6 +29,7 @@ Per-IP rate-limit + page-cache kill on search responses. Every search query is u
 - Cache-Control: `private, no-store` on search responses so Varnish never caches them.
 - Empty `?s=` (bare search form) doesn't trigger — stays cacheable.
 - Default search param: `s` (WP core). Configurable.
+- Counts per visitor, not per proxy. Behind Cloudflare the connecting IP is an edge shared by a whole region, so when the request comes from a Cloudflare range the limit keys on `CF-Connecting-IP`; from anywhere else that header is ignored, so it can't be forged to dodge the limit. Add other trusted proxy ranges with the `wpcp_trusted_proxies` filter.
 
 Enabled by default; toggle off in Settings → Cache Protection.
 
